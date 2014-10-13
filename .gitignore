@@ -1,0 +1,4 @@
+.DS_Store
+*.pyc
+*.pyi
+client_secrets.py
