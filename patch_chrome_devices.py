@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import httplib2
+import csv
 
 from apiclient import errors
 from apiclient.discovery import build
@@ -8,7 +9,7 @@ from oauth2client.client import OAuth2WebServerFlow
 
 
 # Check https://developers.google.com/admin-sdk/directory/v1/guides/authorizing for all available scopes
-OAUTH_SCOPE   = 'https://www.googleapis.com/auth/admin.directory.device.chromeos.readonly'
+OAUTH_SCOPE   = 'https://www.googleapis.com/auth/admin.directory.device.chromeos'
 
 # Copy your credentials and redirect URI from the Google developers console 
 # "Client ID for native application" and put them into client_secrets.py
@@ -35,31 +36,17 @@ http = credentials.authorize(http)
 directory_service = build('admin', 'directory_v1', http=http)
 
 # see https://developers.google.com/admin-sdk/directory/v1/reference/chromeosdevices
-all_devices = []
-page_token = None
-params = {'customerId': 'my_customer'}
 
-while True:
-  try:
-    if page_token:
-      params['pageToken'] = page_token
-    current_page = directory_service.chromeosdevices().list(**params).execute()
-
-    all_devices.extend(current_page['chromeosdevices'])
-    page_token = current_page.get('nextPageToken')
-    if not page_token:
+with open(INPUT_FILE) as f:
+  reader = csv.DictReader(f, dialect='excel-tab')
+  for row in reader:
+    deviceId = row['id']
+    assetNumber = row['notes']
+    if assetNumber != 'None':
+      body = {
+        'notes': assetNumber
+      }
+      print("patching %s with %s" % (deviceId, body['notes']))
+      result = directory_service.chromeosdevices().patch(customerId='my_customer', deviceId=deviceId, body=body).execute()
+      print("%s" % result)
       break
-  except errors.HttpError as error:
-    print 'An error occurred: %s' % error
-    break
-    
-
-with open(OUTPUT_FILE, 'w') as f:
-  f.write("id\tserial\tmac\tmodel\tstatus\tnotes\tos\tfirmware\tenrolled\tsynced\n")
-  for device in all_devices:
-    f.write("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" % (
-      device.get('deviceId'),
-      device.get('serialNumber'), device.get('macAddress'), 
-      device.get('model'), device.get('status'), device.get('notes'),
-      device.get('osVersion'), device.get('firmwareVersion'), 
-      device.get('lastEnrollmentTime'), device.get('lastSync')))
