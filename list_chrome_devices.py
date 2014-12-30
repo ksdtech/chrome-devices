@@ -57,9 +57,12 @@ while True:
 with open(OUTPUT_FILE, 'w') as f:
   f.write("id\tserial\tmac\tmodel\tstatus\tnotes\tos\tfirmware\tenrolled\tsynced\n")
   for device in all_devices:
+    mac = device.get('macAddress')
+    if mac is not None:
+      mac = mac[0:2] + ':' + mac[2:4] + ':' + mac[4:6] + ':' + mac[6:8] + ':' + mac[8:10] + ':' + mac[10:12] 
     f.write("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" % (
       device.get('deviceId'),
-      device.get('serialNumber'), device.get('macAddress'), 
+      device.get('serialNumber'), mac, 
       device.get('model'), device.get('status'), device.get('notes'),
       device.get('osVersion'), device.get('firmwareVersion'), 
       device.get('lastEnrollmentTime'), device.get('lastSync')))
