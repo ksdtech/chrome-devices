@@ -22,31 +22,62 @@ OAUTH_SCOPE   = 'https://www.googleapis.com/auth/admin.directory.device.chromeos
 
 from client_secrets import *
 
-# Run through the OAuth flow and retrieve credentials
-flow = OAuth2WebServerFlow(CLIENT_ID, CLIENT_SECRET, OAUTH_SCOPE, REDIRECT_URI)
-authorize_url = flow.step1_get_authorize_url()
-print 'Go to the following link in your browser: ' + authorize_url
-code = raw_input('Enter verification code: ').strip()
-credentials = flow.step2_exchange(code)
 
-# Create an httplib2.Http object and authorize it with our credentials
-http = httplib2.Http()
-http = credentials.authorize(http)
+ASSET_FILE = 'Asset_export.txt'
 
-directory_service = build('admin', 'directory_v1', http=http)
+def writeInputFile():
+  serial_numbers = { }
+  with open(OUTPUT_FILE) as fout:
+    reader = csv.DictReader(fout, dialect='excel-tab')
+    for row in reader:
+      serial_numbers[row['serial']] = row['id']
+      
+  with open(INPUT_FILE, 'w') as fin:
+    fin.write("id\tserial\tuser\tlocation\tasset_number\n")
+    with open(ASSET_FILE) as fass:
+      assets = csv.DictReader(fass, dialect='excel-tab')
+      for row in assets:
+        serial = row['Serial Number']
+        if serial in serial_numbers:
+          id = serial_numbers[serial]
+          user = row['Network Name']
+          if '' == user:
+            user = row['Room']
+          location = row['Location'].split(' ')[0]
+          asset_number = row['Asset No.']
+          fin.write("%s\t%s\t%s\t%s\t%s\n" % (id, serial, user, location, asset_number))
+        else:  
+          print("No match for serial %s" % serial)
 
-# see https://developers.google.com/admin-sdk/directory/v1/reference/chromeosdevices
+def patchDevices():    
+  # Run through the OAuth flow and retrieve credentials
+  flow = OAuth2WebServerFlow(CLIENT_ID, CLIENT_SECRET, OAUTH_SCOPE, REDIRECT_URI)
+  authorize_url = flow.step1_get_authorize_url()
+  print 'Go to the following link in your browser: ' + authorize_url
+  code = raw_input('Enter verification code: ').strip()
+  credentials = flow.step2_exchange(code)
 
-with open(INPUT_FILE) as f:
-  reader = csv.DictReader(f, dialect='excel-tab')
-  for row in reader:
-    deviceId = row['id']
-    assetNumber = row['notes']
-    if assetNumber != 'None':
-      body = {
-        'notes': assetNumber
-      }
-      print("patching %s with %s" % (deviceId, body['notes']))
-      result = directory_service.chromeosdevices().patch(customerId='my_customer', deviceId=deviceId, body=body).execute()
-      print("%s" % result)
-      break
+  # Create an httplib2.Http object and authorize it with our credentials
+  http = httplib2.Http()
+  http = credentials.authorize(http)
+
+  directory_service = build('admin', 'directory_v1', http=http)
+
+  # see https://developers.google.com/admin-sdk/directory/v1/reference/chromeosdevices
+  with open(INPUT_FILE) as f:
+    reader = csv.DictReader(f, dialect='excel-tab')
+    for row in reader:
+      deviceId = row['id']
+      assetNumber = row['asset_number']
+      if assetNumber:
+        body = {
+          'annotatedUser': row['user'],
+          'annotatedLocation': row['location'],
+          'notes': assetNumber
+        }
+        print("patching %s with %s" % (deviceId, body['notes']))
+        result = directory_service.chromeosdevices().patch(customerId='my_customer', deviceId=deviceId, body=body).execute()
+        print("%s" % result)
+
+# writeInputFile()
+patchDevices()
