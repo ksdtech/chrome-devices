@@ -22,7 +22,6 @@ OAUTH_SCOPE   = 'https://www.googleapis.com/auth/admin.directory.device.chromeos
 
 from client_secrets import *
 
-
 ASSET_FILE = 'Asset_export.txt'
 
 def writeInputFile():
@@ -33,19 +32,24 @@ def writeInputFile():
       serial_numbers[row['serial']] = row['id']
       
   with open(INPUT_FILE, 'w') as fin:
-    fin.write("id\tserial\tuser\tlocation\tasset_number\n")
+    fin.write("id\tserial\tuser\tlocation\tasset_number\tstatus\n")
     with open(ASSET_FILE) as fass:
       assets = csv.DictReader(fass, dialect='excel-tab')
       for row in assets:
         serial = row['Serial Number']
         if serial in serial_numbers:
           id = serial_numbers[serial]
+          asset_number = row['Asset No.']
+          status = row['Status']
+          school = row['Location'].split(' ')[0]
+          room = row['Room']
+          if 'District' == school:
+            room = 'Office'
           user = row['Network Name']
           if '' == user:
-            user = row['Room']
-          location = row['Location'].split(' ')[0]
-          asset_number = row['Asset No.']
-          fin.write("%s\t%s\t%s\t%s\t%s\n" % (id, serial, user, location, asset_number))
+            user = room
+          location = "%s %s" % (school, room)
+          fin.write("%s\t%s\t%s\t%s\t%s\t%s\n" % (id, serial, user, location, asset_number, status))
         else:  
           print("No match for serial %s" % serial)
 
@@ -71,13 +75,14 @@ def patchDevices():
       assetNumber = row['asset_number']
       if assetNumber:
         body = {
+          'annotatedAssetId': assetNumber,
           'annotatedUser': row['user'],
           'annotatedLocation': row['location'],
-          'notes': assetNumber
+          'notes': row['status']
         }
         print("patching %s with %s" % (deviceId, body['notes']))
         result = directory_service.chromeosdevices().patch(customerId='my_customer', deviceId=deviceId, body=body).execute()
         print("%s" % result)
 
-# writeInputFile()
+writeInputFile()
 patchDevices()
